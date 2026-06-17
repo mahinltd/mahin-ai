@@ -128,8 +128,29 @@ const changePassword = async (req, res) => {
     }
 };
 
+const getPaymentHistory = async (req, res) => {
+    try {
+        const Payment = require('../models/Payment');
+        
+        const payments = await Payment.find({ userId: req.user._id })
+            .sort({ createdAt: -1 })
+            .select('gateway amount currency transactionId status createdAt')
+            .lean();
+
+        return res.status(200).json({ 
+            success: true, 
+            count: payments.length, 
+            payments 
+        });
+    } catch (error) {
+        logger.error('Get payment history failed', { error: error.message });
+        return res.status(500).json({ success: false, message: 'Failed to fetch payment history' });
+    }
+};
+
 module.exports = {
     getProfile,
     updateProfile,
-    changePassword
+    changePassword,
+    getPaymentHistory
 };

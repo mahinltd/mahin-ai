@@ -23,6 +23,7 @@ const paymentRoutes = require('./src/routes/paymentRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const conversationRoutes = require('./src/routes/conversationRoutes');
 const userRoutes = require('./src/routes/userRoutes');
+const configRoutes = require('./src/routes/configRoutes');
 
 validateStartupEnv();
 
