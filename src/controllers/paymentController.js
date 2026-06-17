@@ -8,6 +8,8 @@ const Config = require('../models/Config');
 const User = require('../models/User');
 const axios = require('axios');
 const sendEmail = require('../utils/sendEmail');
+const logger = require('../utils/logger');
+const { escapeHtml, isDuplicateKeyError } = require('../utils/security');
 
 const isSafeTransactionId = (value) => typeof value === 'string' && /^[A-Za-z0-9_-]{5,100}$/.test(value.trim());
 
@@ -107,10 +109,10 @@ const submitManualPayment = async (req, res) => {
         // ৫. ১০x অ্যাডমিন অ্যালার্ট (Resend API দিয়ে প্রধান পরিচালকের মেইলে তাৎক্ষণিক নোটিফিকেশন)
         const emailHtml = `
             <h3>New Payment Request Received - Mahin AI</h3>
-            <p><strong>User:</strong> ${req.user.name} (${req.user.email})</p>
-            <p><strong>Method:</strong> ${gateway.toUpperCase()}</p>
-            <p><strong>Sender No:</strong> ${senderNumber || 'N/A'}</p>
-            <p><strong>TrxID:</strong> ${transactionId}</p>
+            <p><strong>User:</strong> ${escapeHtml(req.user.name)} (${escapeHtml(req.user.email)})</p>
+            <p><strong>Method:</strong> ${escapeHtml(String(gateway).toUpperCase())}</p>
+            <p><strong>Sender No:</strong> ${escapeHtml(senderNumber || 'N/A')}</p>
+            <p><strong>TrxID:</strong> ${escapeHtml(transactionId)}</p>
             <p><strong>Amount:</strong> ৳${currentAmount}</p>
             <p>Please review this transaction from your Admin Control Room to Approve the user.</p>
         `;
@@ -125,8 +127,17 @@ const submitManualPayment = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`❌ Manual Payment Submission Error: ${error.message}`);
-        res.status(500).json({ success: false, error: 'Payment Processing Failed', message: error.message });
+        if (isDuplicateKeyError(error)) {
+            return res.status(400).json({
+                success: false,
+                message: 'This Transaction ID has already been used or is currently under review.'
+            });
+        }
+
+        logger.error('Manual payment submission error', {
+            error: error.message
+        });
+        res.status(500).json({ success: false, error: 'Payment Processing Failed', message: 'An internal server error occurred.' });
     }
 };
 
@@ -190,16 +201,16 @@ const paypalSuccessHandler = async (req, res) => {
         // ৪. ইউজার ও অ্যাডমিনকে নোটিফাই করা
         const userEmailHtml = `
             <h2>PayPal payment verified</h2>
-            <p>Dear ${req.user.name}, your PayPal payment of $${verifiedAmount} has been verified successfully.</p>
+            <p>Dear ${escapeHtml(req.user.name)}, your PayPal payment of $${verifiedAmount} has been verified successfully.</p>
             <p>Your <strong>Mahin AI Pro</strong> subscription is now active.</p>
         `;
         sendEmail(req.user.email, '⚡ Subscription Activated - Mahin AI', userEmailHtml);
 
         const adminEmailHtml = `
             <h3>New PayPal Payment Verified</h3>
-            <p><strong>User:</strong> ${req.user.name} (${req.user.email})</p>
-            <p><strong>Order ID:</strong> ${orderId}</p>
-            <p><strong>Capture ID:</strong> ${verifiedTransactionId}</p>
+            <p><strong>User:</strong> ${escapeHtml(req.user.name)} (${escapeHtml(req.user.email)})</p>
+            <p><strong>Order ID:</strong> ${escapeHtml(orderId)}</p>
+            <p><strong>Capture ID:</strong> ${escapeHtml(verifiedTransactionId)}</p>
             <p><strong>Amount:</strong> $${verifiedAmount}</p>
             <p>The payment has been verified directly against PayPal and the user was upgraded to Pro.</p>
         `;
@@ -212,7 +223,13 @@ const paypalSuccessHandler = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`❌ PayPal Success Handler Error: ${error.message}`);
+        if (isDuplicateKeyError(error)) {
+            return res.status(400).json({ success: false, message: 'Duplicate transaction processed.' });
+        }
+
+        logger.error('PayPal success handler error', {
+            error: error.message
+        });
         res.status(500).json({ success: false, error: 'PayPal processing failed' });
     }
 };

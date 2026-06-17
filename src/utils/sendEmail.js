@@ -5,6 +5,7 @@
 
 const { Resend } = require('resend');
 require('dotenv').config();
+const logger = require('./logger');
 
 // .env থেকে রেসেন্ড ক্লায়েন্ট ইনিশিয়ালাইজ করা
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -25,10 +26,17 @@ const sendEmail = async (to, subject, htmlContent) => {
             html: htmlContent
         });
 
-        console.log(`📩 Email sent successfully to ${to}. Message ID: ${data.data?.id}`);
+        logger.info('Email sent successfully', {
+            to,
+            messageId: data.data?.id
+        });
         return { success: true, data };
     } catch (error) {
-        console.error(`❌ Resend Email Error: ${error.message}`);
+        logger.error('Resend email error', {
+            error: error.message,
+            to,
+            subject
+        });
         return { success: false, error: error.message };
     }
 };

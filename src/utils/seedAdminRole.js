@@ -1,11 +1,12 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const logger = require('./logger');
 
 const seedAdminRole = async () => {
     const adminEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 
     if (!adminEmail) {
-        console.warn('⚠️  ADMIN_EMAIL is not set. Skipping admin role seeding.');
+        logger.warn('ADMIN_EMAIL is not set. Skipping admin role seeding.');
         return;
     }
 
@@ -16,7 +17,9 @@ const seedAdminRole = async () => {
         const bootstrapName = String(process.env.ADMIN_BOOTSTRAP_NAME || 'Mahin Admin').trim();
 
         if (!bootstrapPassword) {
-            console.warn(`⚠️  No user found for ADMIN_EMAIL (${adminEmail}) and ADMIN_BOOTSTRAP_PASSWORD is missing. Skipping admin bootstrap.`);
+            logger.warn('Admin bootstrap password is missing, skipping admin bootstrap', {
+                adminEmail
+            });
             return;
         }
 
@@ -32,7 +35,9 @@ const seedAdminRole = async () => {
             accountStatus: 'active'
         });
 
-        console.log(`👑 Admin account bootstrapped for: ${adminEmail}`);
+        logger.info('Admin account bootstrapped', {
+            adminEmail
+        });
         return;
     }
 
@@ -50,9 +55,13 @@ const seedAdminRole = async () => {
 
     if (changed) {
         await adminUser.save();
-        console.log(`👑 Admin role seeded for: ${adminUser.email}`);
+        logger.info('Admin role seeded', {
+            email: adminUser.email
+        });
     } else {
-        console.log(`👑 Admin role already seeded for: ${adminUser.email}`);
+        logger.info('Admin role already seeded', {
+            email: adminUser.email
+        });
     }
 };
 

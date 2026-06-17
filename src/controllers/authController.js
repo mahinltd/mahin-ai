@@ -6,6 +6,8 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const logger = require('../utils/logger');
+const { isDuplicateKeyError } = require('../utils/security');
 
 const isValidEmail = (value) => typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
@@ -86,8 +88,14 @@ const registerUser = async (req, res) => {
             });
         }
     } catch (error) {
-        console.error(`❌ Signup Error: ${error.message}`);
-        res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
+        if (isDuplicateKeyError(error)) {
+            return res.status(400).json({ success: false, message: 'User already exists with this email' });
+        }
+
+        logger.error('Signup error', {
+            error: error.message
+        });
+        res.status(500).json({ success: false, error: 'Internal Server Error', message: 'An internal server error occurred.' });
     }
 };
 
@@ -139,7 +147,9 @@ const loginUser = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error(`❌ Login Error: ${error.message}`);
+        logger.error('Login error', {
+            error: error.message
+        });
         res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
 };
@@ -202,7 +212,37 @@ const googleAuth = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error(`❌ Google Auth Error: ${error.message}`);
+        if (isDuplicateKeyError(error)) {
+            const existingUser = await User.findOne({ email: normalizedEmail });
+
+            if (existingUser) {
+                if (existingUser.authProvider !== 'google') {
+                    return res.status(400).json({ success: false, message: 'Please log in using your password.' });
+                }
+
+                if (existingUser.accountStatus === 'banned') {
+                    return res.status(403).json({ success: false, message: 'Your account has been suspended.' });
+                }
+
+                existingUser.tracking = trackingData;
+                await existingUser.save();
+
+                return res.status(200).json({
+                    success: true,
+                    token: generateToken(existingUser._id),
+                    user: {
+                        id: existingUser._id,
+                        name: existingUser.name,
+                        email: existingUser.email,
+                        currentPlan: existingUser.currentPlan,
+                    }
+                });
+            }
+        }
+
+        logger.error('Google auth error', {
+            error: error.message
+        });
         res.status(500).json({ success: false, error: 'Google Authentication Failed' });
     }
 };

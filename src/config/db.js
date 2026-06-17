@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const logger = require('../utils/logger');
 
 const connectDB = async () => {
     try {
@@ -14,9 +15,13 @@ const connectDB = async () => {
             autoIndex: true, 
         });
 
-        console.log(`📡 MongoDB Connected Successfully: ${conn.connection.host}`);
+        logger.info('MongoDB connected successfully', {
+            host: conn.connection.host
+        });
     } catch (error) {
-        console.error(`❌ MongoDB Connection Error: ${error.message}`);
+        logger.error('MongoDB connection error', {
+            error: error.message
+        });
         // ডাটাবেজ কানেক্ট না হলে পুরো সার্ভার ডাউন করে প্রসেস এক্সিট করা (নিরাপত্তার স্বার্থে)
         process.exit(1);
     }

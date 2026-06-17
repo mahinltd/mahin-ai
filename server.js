@@ -7,11 +7,14 @@
 
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 require('dotenv').config();
 
 // ডাটাবেজ কানেকশন এবং কনফিগ ইমপোর্ট
 const connectDB = require('./src/config/db');
 const seedAdminRole = require('./src/utils/seedAdminRole');
+const logger = require('./src/utils/logger');
+const { validateStartupEnv } = require('./src/config/env');
 
 // রাউট ফাইলসমূহ ইমপোর্ট
 const authRoutes = require('./src/routes/authRoutes');
@@ -19,23 +22,29 @@ const aiRoutes = require('./src/routes/aiRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 
+validateStartupEnv();
+
 const app = express();
 
+app.disable('x-powered-by');
+app.use(helmet());
+
 // ২. মিডলওয়্যার কনফিগারেশন (Body Parser & Security Layers)
-app.use(express.json()); // JSON পে-লোড রিড করার জন্য
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '5mb' })); // JSON পে-লোড রিড করার জন্য
+app.use(express.urlencoded({ extended: true, limit: process.env.URLENCODED_BODY_LIMIT || '5mb' }));
 
 // ১০x কর্স প্রোটেকশন (CORS Policy Setup)
 // প্রোডাকশনে আপনার ফ্রন্টএন্ড ডোমেইনটি (যেমন: https://mahinai.app) এখানে সেট করে দেবেন
-const allowedOrigins = [
+const allowedOrigins = new Set([
     'http://localhost:3000',
     'http://localhost:5173',
-    'https://mahinai.app'
-];
+    'https://mahinai.app',
+    process.env.CLIENT_URL
+].filter(Boolean));
 app.use(cors({
     origin: function (origin, callback) {
         // মোবাইল অ্যাপ বা ব্রাউজার এক্সটেনশন ছাড়া ডাইরেক্ট ব্রাউজার রিকোয়েস্ট চেক
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        if (!origin || allowedOrigins.has(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Blocked by Mahin Ltd Security Protocol (CORS)'));
@@ -66,17 +75,22 @@ app.use((req, res, next) => {
     res.status(404).json({
         success: false,
         error: 'Not Found',
-        message: 'The requested API endpoint does not exist on Mahin AI Backend Ecosystem.'
+        message: 'The requested API endpoint does not exist.'
     });
 });
 
 // ৬. গ্লোবাল ৫00 সেন্ট্রাল এরর ক্যাচার (সার্ভার ক্র্যাশ প্রটেকশন)
 app.use((err, req, res, next) => {
-    console.error(`🚨 Global Server Catch: ${err.stack}`);
+    logger.error('Global server error', {
+        error: err.message,
+        stack: err.stack,
+        path: req.originalUrl,
+        method: req.method
+    });
     res.status(500).json({
         success: false,
         error: 'Internal Server Error',
-        message: err.message || 'A critical error occurred within the Mahin Ltd servers.'
+        message: 'An internal server error occurred.'
     });
 });
 
@@ -84,7 +98,9 @@ const PORT = process.env.PORT || 5000;
 
 // কোনো আনহ্যান্ডেলড রিজেকশন হলে সার্ভারকে নিরাপদভাবে ম্যানেজ করা
 process.on('unhandledRejection', (err, promise) => {
-    console.log(`🚨 Critical Unhandled Rejection: ${err.message}`);
+    logger.error('Unhandled promise rejection', {
+        error: err && err.message ? err.message : 'Unknown rejection reason'
+    });
     // সার্ভার ক্র্যাশ না করিয়ে ব্যাকলগ লক করা বেস্ট প্র্যাকটিস
 });
 
@@ -93,15 +109,17 @@ const startServer = async () => {
     await seedAdminRole();
 
     app.listen(PORT, () => {
-        console.log(`\n🚀 ===================================================`);
-        console.log(`📡 Mahin AI Enterprise Server Live on Port: ${PORT}`);
-        console.log(`🌐 Mode: ${process.env.NODE_ENV || 'production'}`);
-        console.log(`👑 Owner & CEO: Tanvir Rahman (Mahin Ltd)`);
-        console.log(`====================================================== 🚀\n`);
+        logger.info('Mahin AI enterprise server started', {
+            port: PORT,
+            environment: process.env.NODE_ENV || 'production',
+            owner: 'Tanvir Rahman (Mahin Ltd)'
+        });
     });
 };
 
 startServer().catch((error) => {
-    console.error(`🚨 Server bootstrap failed: ${error.message}`);
+    logger.error('Server bootstrap failed', {
+        error: error.message
+    });
     process.exit(1);
 });

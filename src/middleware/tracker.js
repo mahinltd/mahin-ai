@@ -5,6 +5,7 @@
 
 const useragent = require('useragent');
 const geoip = require('geoip-lite');
+const logger = require('../utils/logger');
 
 const tracker = (req, res, next) => {
     try {
@@ -42,7 +43,9 @@ const tracker = (req, res, next) => {
 
         next();
     } catch (error) {
-        console.error(`❌ Tracking Middleware Error: ${error.message}`);
+        logger.warn('Tracking middleware error', {
+            error: error.message
+        });
         next(); // ট্র্যাকিং ফেল করলেও যেন মেইন ইউজার এক্সপেরিয়েন্স আটকে না যায়
     }
 };

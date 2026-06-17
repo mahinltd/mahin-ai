@@ -4,6 +4,7 @@
  */
 
 const User = require('../models/User');
+const logger = require('../utils/logger');
 
 const authorizeAdmin = async (req, res, next) => {
     try {
@@ -36,7 +37,9 @@ const authorizeAdmin = async (req, res, next) => {
             });
         }
     } catch (error) {
-        console.error(`❌ Admin Authorization Error: ${error.message}`);
+        logger.error('Admin authorization error', {
+            error: error.message
+        });
         return res.status(500).json({
             success: false,
             error: 'Server Error',

@@ -7,6 +7,8 @@ const { getActiveKey, poolsCount } = require('../config/aiConfig');
 const Config = require('../models/Config');
 const User = require('../models/User');
 const { init } = require('@heyputer/puter.js/src/init.cjs');
+const logger = require('../utils/logger');
+const { sanitizeMarkdown } = require('../utils/security');
 
 const resolveModel = (modelType) => {
     if (modelType === 'light') {
@@ -31,12 +33,14 @@ const generateChatResponse = async (req, res) => {
         const userId = req.user._id;
 
         // ১. সেফটি চেক: প্রম্পট বা মেসেজ খালি কি না
-        if (!message) {
+        if (typeof message !== 'string' || message.trim().length === 0) {
             return res.status(400).json({ success: false, message: 'Please provide a message/prompt' });
         }
 
         // ২. অ্যাডমিন কিল-সুইচ এবং কনফিগ চেক (MongoDB থেকে লাইভ ডেটা রিড)
-        let systemConfig = await Config.findOne();
+        let systemConfig = await Config.findOne()
+            .select('modelNameLight modelNamePro modelNameMax isProModelActive isMaxModelActive')
+            .lean();
         if (!systemConfig) {
             // যদি ডাটাবেজে কোনো কনফিগ না থাকে, ডিফল্ট একটি তৈরি করে নেবে
             systemConfig = await Config.create({});
@@ -97,7 +101,10 @@ const generateChatResponse = async (req, res) => {
                 break; 
 
             } catch (apiError) {
-                console.warn(`⚠️ Token failed on attempt ${attempts + 1}: ${apiError.message}. Shifting to next token...`);
+                logger.warn('AI token failed, rotating to next token', {
+                    attempt: attempts + 1,
+                    error: apiError.message
+                });
                 attempts++;
                 // যদি সব টোকেন শেষ হয়ে যায় এবং কোনোটিই কাজ না করে
                 if (attempts === maxAttempts) {
@@ -116,22 +123,26 @@ const generateChatResponse = async (req, res) => {
                         ? responseData.choices[0].message.content
                         : null;
 
+        const sanitizedReply = sanitizeMarkdown(replyText || '');
+
         if (replyText) {
             return res.status(200).json({
                 success: true,
                 modelUsed: modelType === 'light' ? systemConfig.modelNameLight : (modelType === 'pro' ? systemConfig.modelNamePro : systemConfig.modelNameMax),
-                reply: replyText
+                reply: sanitizedReply || replyText
             });
         } else {
             throw new Error('Invalid response structure received from AI engine.');
         }
 
     } catch (error) {
-        console.error(`❌ Core AI Generation Error: ${error.message}`);
+        logger.error('Core AI generation error', {
+            error: error.message
+        });
         return res.status(500).json({
             success: false,
             error: 'AI Generation Failed',
-            message: error.message
+            message: 'AI generation failed.'
         });
     }
 };

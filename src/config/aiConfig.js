@@ -6,6 +6,7 @@
 
 // ফাইলের শুরুতেই dotenv নিশ্চিত করা যাতে কোনো কী মিস না হয়
 require('dotenv').config();
+const logger = require('../utils/logger');
 
 // এনভায়রনমেন্ট ভ্যারিয়েবল থেকে ডাইনামিকালি সচল কী-গুলো খুঁজে বের করার হেল্পার ফাংশন
 const loadAvailableKeys = (prefix) => {
@@ -35,11 +36,12 @@ const currentIndices = {
     huggingface: 0
 };
 
-console.log(`\n⚙️  [Mahin AI Engine] Loading Token Pools...`);
-console.log(`   - Puter Tokens Loaded: ${configPools.puter.length}`);
-console.log(`   - Gemini Keys Loaded: ${configPools.gemini.length}`);
-console.log(`   - Groq Keys Loaded: ${configPools.groq.length}`);
-console.log(`   - Hugging Face Keys Loaded: ${configPools.huggingface.length}\n`);
+logger.info('Loading token pools', {
+    puterTokens: configPools.puter.length,
+    geminiKeys: configPools.gemini.length,
+    groqKeys: configPools.groq.length,
+    huggingFaceKeys: configPools.huggingface.length
+});
 
 /**
  * মেইন রোটেশন ফাংশন (Round-Robin Method)
@@ -50,7 +52,7 @@ const getActiveKey = (provider) => {
     const pool = configPools[provider];
     
     if (!pool || pool.length === 0) {
-        console.error(`❌ Error: No keys found for AI provider: ${provider}`);
+        logger.error('No keys found for AI provider', { provider });
         return null;
     }
 
