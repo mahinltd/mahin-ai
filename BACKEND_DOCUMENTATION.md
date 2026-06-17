@@ -234,19 +234,26 @@ All endpoints return JSON with this structure:
   "token": "optional JWT token"
 }
 ```
+14. [Conversation History System](#conversation-history-system)
+15. [User Profile System](#user-profile-system)
 
 **Error Response:**
 ```json
 {
+  │  │  - /api/v1/conversations (Chat History)        │  │
+  │  │  - /api/v1/user    (Profile Management)        │  │
   "success": false,
   "error": "Error type",
   "message": "Detailed error message"
 }
 ```
+  │  │  - conversationController (Chat History)       │  │
+  │  │  - userController    (Profile Management)       │  │
 
 ---
 
 ## 🔐 Authentication Routes
+  │  │  - Conversation Model (Chat History)            │  │
 
 ### Base Path: `/api/v1/auth`
 
@@ -257,6 +264,42 @@ POST /signup
 
 **Request Body:**
 ```json
+  conversationHistory: [String] // Array of conversation IDs
+}
+
+**Field Explanations:**
+- `avatar`: Optional profile image URL used by the frontend avatar UI
+- `preferences`: User-facing settings stored with the account
+- `preferences.theme`: `light`, `dark`, or `system`
+- `preferences.language`: Preferred UI language code
+- `preferences.notifications`: Frontend notification preference
+
+---
+
+### Conversation Model
+
+```javascript
+{
+  _id: ObjectId,
+  userId: ObjectId (ref: 'User', required),
+  title: String (default: 'New conversation'),
+  messages: [
+    {
+      role: 'user' | 'assistant',
+      content: String,
+      timestamp: Date
+    }
+  ],
+  createdAt: Date (auto),
+  updatedAt: Date (auto)
+}
+```
+
+**Field Explanations:**
+- `userId`: Ensures each user only accesses their own chat history
+- `title`: Used for sidebar chat list labels and rename flow
+- `messages`: Stores the full conversation thread across devices
+- `timestamp`: Preserves the order of each user and AI message
 {
   "name": "John Doe",
   "email": "john@example.com",
@@ -265,8 +308,195 @@ POST /signup
 ```
 
 **Password Requirements:**
+- ✅ Conversation history auto-save for each exchange
+
+## 💬 Conversation History System
+
+### Base Path: `/api/v1/conversations`
+
+All conversation routes are JWT protected and only return data owned by the signed-in user.
+
+#### Create Conversation
+```
+POST /conversations
+```
+
+**Headers:**
+```
+Authorization: Bearer {JWT_TOKEN}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "title": "Product brainstorming"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "conversation": {
+    "_id": "conversation_id",
+    "userId": "user_id",
+    "title": "Product brainstorming",
+    "messages": [],
+    "createdAt": "2026-06-18T00:00:00.000Z",
+    "updatedAt": "2026-06-18T00:00:00.000Z"
+  }
+}
+```
+
+#### Get All Conversations
+```
+GET /conversations
+```
+
+**Optional Query Params:** `page`, `limit`
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 1,
+  "conversations": [
+    {
+      "_id": "conversation_id",
+      "title": "Product brainstorming",
+      "messages": [],
+      "createdAt": "2026-06-18T00:00:00.000Z",
+      "updatedAt": "2026-06-18T00:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+#### Get Conversation Details
+```
+GET /conversations/:id
+```
+
+**Response:** returns the full conversation document with all messages.
+
+#### Rename Conversation
+```
+PUT /conversations/:id
+```
+
+**Request Body:**
+```json
+{
+  "title": "Q3 launch ideas"
+}
+```
+
+#### Delete Conversation
+```
+DELETE /conversations/:id
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Conversation deleted successfully"
+}
+```
+
+**AI Integration Behavior:**
+- Each successful `/api/v1/ai/chat` call is saved into a conversation automatically
+- The backend accepts an optional `conversationId` in the AI chat body to continue an existing thread
+- If no `conversationId` is supplied, the backend creates a new conversation record
+
+---
+
+## 👤 User Profile System
+
+### Base Path: `/api/v1/user`
+
+All profile routes are JWT protected.
+
+#### Get Profile
+```
+GET /user/profile
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "user": {
+    "_id": "user_id",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "avatar": "https://...",
+    "preferences": {
+      "theme": "system",
+      "language": "en",
+      "notifications": true
+    }
+  }
+}
+```
+
+#### Update Profile
+```
+PUT /user/profile
+```
+
+**Request Body:**
+```json
+{
+  "name": "John Doe",
+  "avatar": "https://example.com/avatar.png",
+  "preferences": {
+    "theme": "dark",
+    "language": "en",
+    "notifications": true
+  }
+}
+```
+
+**Optional Avatar Upload:**
+- The backend can also accept an uploaded avatar file through Cloudinary-compatible middleware if enabled by the frontend stack.
+
+#### Change Password
+```
+PUT /user/change-password
+```
+
+**Request Body:**
+```json
+{
+  "currentPassword": "OldPass@123",
+  "newPassword": "NewPass@123"
+}
+```
+
+**Rules:**
+- Current password must match the stored bcrypt hash
+- New password must satisfy the existing strength rules
+- Only local accounts can change passwords here
+
+---
 - Minimum 8 characters
 - At least one uppercase letter (A-Z)
+- `POST /api/v1/conversations`
+- `GET /api/v1/conversations`
+- `GET /api/v1/conversations/:id`
+- `PUT /api/v1/conversations/:id`
+- `DELETE /api/v1/conversations/:id`
+- `GET /api/v1/user/profile`
+- `PUT /api/v1/user/profile`
+- `PUT /api/v1/user/change-password`
 - At least one lowercase letter (a-z)
 - At least one digit (0-9)
 - At least one special character (!@#$%^&*)
@@ -300,6 +530,76 @@ POST /login
 {
   "email": "john@example.com",
   "password": "SecurePass@123"
+
+### 6. Conversation Sidebar
+```javascript
+async function loadConversations() {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/conversations?page=1&limit=20`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  return response.json();
+}
+```
+
+### 7. Conversation Detail View
+```javascript
+async function loadConversation(conversationId) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  return response.json();
+}
+```
+
+### 8. Profile Page
+```javascript
+async function loadProfile() {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/user/profile`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  return response.json();
+}
+
+async function updateProfile(payload) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/user/profile`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  return response.json();
+}
+
+async function changePassword(currentPassword, newPassword) {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}/user/change-password`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ currentPassword, newPassword })
+  });
+
+  return response.json();
+}
+```
 }
 ```
 

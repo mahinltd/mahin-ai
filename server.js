@@ -21,6 +21,8 @@ const authRoutes = require('./src/routes/authRoutes');
 const aiRoutes = require('./src/routes/aiRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const conversationRoutes = require('./src/routes/conversationRoutes');
+const userRoutes = require('./src/routes/userRoutes');
 
 validateStartupEnv();
 
@@ -58,6 +60,8 @@ app.use('/api/v1/auth', authRoutes);       // অথেনটিকেশন র
 app.use('/api/v1/ai', aiRoutes);         // কোর এআই রোটেশন রুট
 app.use('/api/v1/payment', paymentRoutes); // পেমেন্ট ও সাবস্ক্রিপশন রুট
 app.use('/api/v1/admin', adminRoutes);     // সিইও কমান্ড সেন্টার রুট
+app.use('/api/v1/conversations', conversationRoutes); // চ্যাট হিস্ট্রি রুট
+app.use('/api/v1/user', userRoutes); // ইউজার প্রোফাইল রুট
 
 // ৪. বেস বা হেলথ-চেক রাউট (সার্ভার সচল আছে কি না তা দূর থেকে চেক করার জন্য)
 app.get('/', (req, res) => {

@@ -9,6 +9,7 @@ const User = require('../models/User');
 const { init } = require('@heyputer/puter.js/src/init.cjs');
 const logger = require('../utils/logger');
 const { sanitizeMarkdown } = require('../utils/security');
+const { appendConversationMessage } = require('./conversationController');
 
 const resolveModel = (modelType) => {
     if (modelType === 'light') {
@@ -126,6 +127,21 @@ const generateChatResponse = async (req, res) => {
         const sanitizedReply = sanitizeMarkdown(replyText || '');
 
         if (replyText) {
+            const conversationId = req.body.conversationId;
+
+            appendConversationMessage({
+                userId,
+                conversationId,
+                userMessage: message,
+                assistantMessage: replyText,
+                title: req.body.title
+            }).catch((saveError) => {
+                logger.warn('Conversation save failed', {
+                    error: saveError.message,
+                    userId: String(userId)
+                });
+            });
+
             return res.status(200).json({
                 success: true,
                 modelUsed: modelType === 'light' ? systemConfig.modelNameLight : (modelType === 'pro' ? systemConfig.modelNamePro : systemConfig.modelNameMax),

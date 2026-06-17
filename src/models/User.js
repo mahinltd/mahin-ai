@@ -42,6 +42,15 @@ const userSchema = new mongoose.Schema({
         enum: ['active', 'banned'],
         default: 'active'
     },
+    avatar: {
+        type: String,
+        default: ''
+    },
+    preferences: {
+        theme: { type: String, default: 'system' },
+        language: { type: String, default: 'en' },
+        notifications: { type: Boolean, default: true }
+    },
     // ১০x ডিভাইস ও লোকেশন ট্র্যাকিং ডেটা
     tracking: {
         lastIp: { type: String, default: '' },
